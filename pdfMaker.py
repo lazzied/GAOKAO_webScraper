@@ -1,6 +1,7 @@
 import os
 import time
 import functions
+from tqdm import tqdm
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -79,61 +80,62 @@ try:
 
     imagePaths = list()
     current_page = 1
-
-    while current_page <= pageNumbers:
-        try:
-            print(f"Scraping page {current_page}")
-
+    with tqdm(total=pageNumbers, desc="Scraping pages", unit="page") as pbar:
+        while current_page <= pageNumbers:
             try:
-                imageContainer = WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.CLASS_NAME, 'TRS_Editor'))
-                )
-                image = imageContainer.find_element(By.XPATH, './/img[1]')
-                imageSource = image.get_attribute('src')
+                print(f"Scraping page {current_page}")
 
-                tempImagePath = f"temp/{current_page}.jpg"
-                resizedImagePath = f"temp/resized_a4_{current_page}.png"
-
-                functions.download_image(imageSource, tempImagePath)
-                functions.resize_image(tempImagePath, "temp")
-                os.remove(tempImagePath)
-
-                imagePaths.append(resizedImagePath)
-
-                print(f"Page {current_page} scraped successfully.")
-
-            except TimeoutException:
-                print(f"Timeout: No image found on page {current_page}, skipping...")
-                driver.save_screenshot(f"timeout_page_{current_page}.png")
-
-            except Exception as scrape_e:
-                print(f"Error scraping page {current_page}:", scrape_e)
-                driver.save_screenshot(f"error_scraping_page_{current_page}.png")
-
-            # Now move to next page if any
-            if current_page < pageNumbers:
                 try:
-                    pagesContainer = WebDriverWait(driver, 10).until(
-                        EC.presence_of_element_located((By.XPATH, "//div[@id='perpage']"))
+                    imageContainer = WebDriverWait(driver, 10).until(
+                        EC.presence_of_element_located((By.CLASS_NAME, 'TRS_Editor'))
                     )
-                    pages = pagesContainer.find_elements(By.TAG_NAME, "a")
-                    numericPages = [page for page in pages if page.text.isdigit()]
-                    
-                    next_link = numericPages[current_page].get_attribute("href")
-                    print(f"Navigating to page {current_page + 1}: {next_link}")
-                    driver.get(next_link)
-                    time.sleep(2)
-                except Exception as nav_e:
-                    print(f"Error navigating to page {current_page + 1}:", nav_e)
-                    driver.save_screenshot(f"error_navigate_page_{current_page + 1}.png")
-                    break
+                    image = imageContainer.find_element(By.XPATH, './/img[1]')
+                    imageSource = image.get_attribute('src')
 
-            current_page += 1
+                    tempImagePath = f"temp/{current_page}.jpg"
+                    resizedImagePath = f"temp/resized_a4_{current_page}.png"
 
-        except Exception as e:
-            print(f"Unknown error at page {current_page}:", e)
-            driver.save_screenshot(f"unknown_error_page_{current_page}.png")
-            break  # stop completely if scraping failed
+                    functions.download_image(imageSource, tempImagePath)
+                    functions.resize_image(tempImagePath, "temp")
+                    os.remove(tempImagePath)
+
+                    imagePaths.append(resizedImagePath)
+
+                    print(f"Page {current_page} scraped successfully.")
+
+                except TimeoutException:
+                    print(f"Timeout: No image found on page {current_page}, skipping...")
+                    driver.save_screenshot(f"timeout_page_{current_page}.png")
+
+                except Exception as scrape_e:
+                    print(f"Error scraping page {current_page}:", scrape_e)
+                    driver.save_screenshot(f"error_scraping_page_{current_page}.png")
+
+                # Now move to next page if any
+                if current_page < pageNumbers:
+                    try:
+                        pagesContainer = WebDriverWait(driver, 10).until(
+                            EC.presence_of_element_located((By.XPATH, "//div[@id='perpage']"))
+                        )
+                        pages = pagesContainer.find_elements(By.TAG_NAME, "a")
+                        numericPages = [page for page in pages if page.text.isdigit()]
+                        
+                        next_link = numericPages[current_page].get_attribute("href")
+                        print(f"Navigating to page {current_page + 1}: {next_link}")
+                        driver.get(next_link)
+                        time.sleep(2)
+                    except Exception as nav_e:
+                        print(f"Error navigating to page {current_page + 1}:", nav_e)
+                        driver.save_screenshot(f"error_navigate_page_{current_page + 1}.png")
+                        break
+
+                current_page += 1
+                pbar.update(1)
+
+            except Exception as e:
+                print(f"Unknown error at page {current_page}:", e)
+                driver.save_screenshot(f"unknown_error_page_{current_page}.png")
+                break  # stop completely if scraping failed
 
     try:
         output_pdf_path = os.path.join(output_folder, "Language_Exam.pdf")
