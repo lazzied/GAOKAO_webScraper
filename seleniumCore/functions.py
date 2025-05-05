@@ -2,17 +2,49 @@ import os
 import requests
 from PIL import Image
 
-def download_image(image_url, save_path):
-    try:
-        response = requests.get(image_url)
-        if response.status_code == 200:
+import requests
+import time
+
+import requests
+import time
+import os
+
+def download_image(image_url, save_path, max_retries=3, timeout=15):
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            print(f"[Attempt {attempt}] Downloading image: {image_url}")
+            response = requests.get(image_url, timeout=timeout)
+            response.raise_for_status()
+
+            # Create folder if it doesn't exist
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+
+            # Save the image
             with open(save_path, 'wb') as f:
                 f.write(response.content)
-            print(f"Image saved to {save_path}")
-        else:
-            print(f"Failed to download image. Status code: {response.status_code}")
-    except Exception as e:
-        print(f"Error downloading image: {e}")
+
+            print(f"✅ Downloaded successfully: {save_path}")
+            return True
+
+        except requests.exceptions.Timeout:
+            print(f"⏳ Timeout on attempt {attempt} for image: {image_url}")
+        except requests.exceptions.ConnectionError:
+            print(f"🚫 Connection error on attempt {attempt} for image: {image_url}")
+        except requests.exceptions.HTTPError as e:
+            print(f"❌ HTTP error ({e.response.status_code}) for image: {image_url}")
+            # If it's a 404 or 403, don't bother retrying
+            if e.response.status_code in [403, 404]:
+                break
+        except Exception as e:
+            print(f"⚠️ Unexpected error on attempt {attempt}: {e}")
+
+        # Exponential backoff before retrying
+        time.sleep(2 ** attempt)
+
+    print(f"❌ Failed to download after {max_retries} attempts: {image_url}")
+    return False
+
 
 def resize_image(image_path, folder_name):
     try:
