@@ -34,57 +34,69 @@ def navigate_to_subject(driver: webdriver.Chrome, container: str):
         driver.get(url)
         return
 
-def fetch_image_paths(driver: webdriver.Chrome) -> list:
+def fetch_image_paths(driver: webdriver.Chrome):
     pages_container = WebDriverWait(driver, 10).until(
         EC.presence_of_element_located((By.ID, 'perpage'))
     )
-    pages = pages_container.find_elements(By.TAG_NAME, "a")
-    numeric = [p for p in pages if p.text.isdigit()]
-    total = len(numeric)
-    print(f"Total numeric pages found: {total}")
-    pages_container = WebDriverWait(driver, 10).until(
-    EC.presence_of_element_located((By.XPATH, "//*[@id='perpage']")))
-    pages = pages_container.find_elements(By.TAG_NAME, "a")
-    numeric = [p for p in pages if p.text.isdigit()]
-    page_links = [p.get_attribute("href") for p in numeric]
+
+    # Get total pages from the single span text like "共 12 页"
+    total_text = pages_container.find_element(By.TAG_NAME, "span").text
+    total = int(''.join(filter(str.isdigit, total_text)))
+    total_pages_scraped = 0
 
 
+    def get_visible_page_links():
+        pages = driver.find_element(By.ID, 'perpage').find_elements(By.TAG_NAME, "a")
+        return {
+            int(p.text): p.get_attribute("href")
+            for p in pages if p.text.isdigit()
+        }
+
+    page_links = get_visible_page_links()
     image_paths = []
-    for current in tqdm(range(1, total + 1), desc="Scraping pages", unit="page"):
+    current_page = 1
+
+    while current_page <= total:
         try:
-            print(f"Scraping page {current}")
+            print(f"\nScraping page {current_page}")
+
             image = WebDriverWait(driver, 10).until(
                 EC.presence_of_element_located((By.CLASS_NAME, 'TRS_Editor'))
             ).find_element(By.XPATH, './/img[1]')
             src = image.get_attribute('src')
 
-            temp = f"temp/{current}.jpg"
-            resized = f"temp/resized_a4_{current}.png"
-
+            temp = f"temp/{current_page}.jpg"
             functions.download_image(src, temp)
-            functions.resize_image(temp, "temp")
-            os.remove(temp)
+            image_paths.append(temp)
+            print(f"Page {current_page} scraped successfully.")
+            total_pages_scraped +=1
 
-            image_paths.append(resized)
-            print(f"Page {current} scraped successfully.")
+            # Update page links if new ones appear dynamically
+            new_links = get_visible_page_links()
+            for k, v in new_links.items():
+                if k not in page_links:
+                    page_links[k] = v
 
-        except TimeoutException:
-            print(f"Timeout: No image found on page {current}, skipping...")
-        except Exception as e:
-            print(f"Error scraping page {current}:", e)
-
-        if current < total:
-            try:
-                
-
-                next_link = page_links[current]
-                print(f"Navigating to page {current+1}: {next_link}")
+            # Navigate to next page
+            if current_page + 1 in page_links:
+                next_link = page_links[current_page + 1]
+                print(f"Navigating to page {current_page + 1}: {next_link}")
                 driver.get(next_link)
                 time.sleep(2)
-            except Exception as e:
-                print(f"Error navigating to page {current+1}:", e)
+            else:
+                print(f"No link for page {current_page + 1}, stopping.")
                 break
-    return image_paths
+
+        except TimeoutException:
+            print(f"Timeout: No image found on page {current_page}, skipping...")
+        except Exception as e:
+            print(f"Error scraping page {current_page}: {e}")
+
+        current_page += 1
+
+    return image_paths, total, total_pages_scraped
+
+
 
 def create_pdf(image_paths: list, output_folder: str, subject: str):
     output = os.path.join(output_folder, f"{translate_to_english[subject]}.pdf")
@@ -92,7 +104,7 @@ def create_pdf(image_paths: list, output_folder: str, subject: str):
     print(f"PDF successfully created: {output}")
     return output
 
-def save_exam_to_db(data: Exam,output):
+def save_exam_to_db(data: Exam,output,total_pages, total_pages_scraped):
     db = SessionLocal()
     answers_path = f"~/Documents/CEE/CEE-DATA/ASIA/CHINA/GAOKAO/{data.year}/{translate_to_english[data.exam_type.strip()]}/{translate_to_english[data.subject.strip()]}/Solution"
     try:
@@ -105,6 +117,9 @@ def save_exam_to_db(data: Exam,output):
             answers_path = answers_path,
             answers      = True,
             country      = "china",
+            total_pages_number= total_pages, 
+            total_pages_scraped= total_pages_scraped
+
             # omit exam_id—Pydantic won’t include it
         )
         record = create_exam(exam_input,db)
@@ -132,9 +147,9 @@ def treat_exam(driver, data, container):
     
     navigate_to_subject(driver, 
      container)
-    images = fetch_image_paths(driver)
+    images, total_pages, total_pages_scraped = fetch_image_paths(driver)
     output = create_pdf(images, folder, data.subject)
-    save_exam_to_db(data,output)
+    save_exam_to_db(data,output,total_pages, total_pages_scraped)
   
 
     

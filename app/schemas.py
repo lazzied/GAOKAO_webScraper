@@ -4,6 +4,8 @@ from typing  import Optional, List
 class SolutionSchema(BaseModel):
     solution_id: int
     exam_id:     int
+    total_pages_number: Optional[int]  = None
+    total_pages_scraped: Optional[int]  = None
 
     class Config:
         orm_mode = True
@@ -28,6 +30,8 @@ class ExamBase(BaseModel):
     answers_path: Optional[str]  = None
     exam_type:    Optional[str]  = None
     score:        Optional[int]  = None
+    total_pages_number: Optional[int]  = None
+    total_pages_scraped: Optional[int]  = None
 
 class ExamCreate(ExamBase):
     """All fields optional, defaults applied in model __init__"""

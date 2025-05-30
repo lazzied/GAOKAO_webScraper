@@ -18,6 +18,8 @@ class Exam(Base):
     answers_path = Column(String, nullable=True)
     exam_type = Column(String, nullable=True)
     score = Column(Integer, nullable=True)
+    total_pages_number= Column(Integer, nullable=True)
+    total_pages_scraped= Column(Integer, nullable=True)
 
     # Modified constructor
     def __init__(self, **kwargs):
@@ -33,6 +35,8 @@ class Solution(Base):
 
     solution_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     exam_id     = Column(Integer, ForeignKey("exams.exam_id"), nullable=False, index=True)
+    total_pages_number= Column(Integer, nullable=True)
+    total_pages_scraped= Column(Integer, nullable=True)
 
     def __init__ (
             self,
