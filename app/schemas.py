@@ -12,6 +12,8 @@ class SolutionSchema(BaseModel):
 
 class SolutionBase(BaseModel):
     exam_id: int
+    total_pages_number: Optional[int]  = None
+    total_pages_scraped: Optional[int]  = None
 
 class SolutionCreate(SolutionBase):
     pass  # Nothing extra, used when creating

@@ -40,9 +40,14 @@ class Solution(Base):
 
     def __init__ (
             self,
-            exam_id
+            exam_id,
+            total_pages_number= None,
+            total_pages_scraped=None
     ):
         self.exam_id = exam_id
+        self.total_pages_number = total_pages_number,
+        self.total_pages_scraped=total_pages_scraped
+    
 
     # optional back-ref so you can do solution.exam and exam.solutions
     exam = relationship("Exam", back_populates="solutions")

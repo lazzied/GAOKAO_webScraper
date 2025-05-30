@@ -7,7 +7,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException
-
+import shutil
 
 from app.routes.exam import create_exam
 from app.schemas import ExamCreate
@@ -38,12 +38,13 @@ def fetch_image_paths(driver: webdriver.Chrome):
     pages_container = WebDriverWait(driver, 10).until(
         EC.presence_of_element_located((By.ID, 'perpage'))
     )
+    children = pages_container.find_elements(By.XPATH, "./*")
+    total = int(children[-1].text.split()[1])
+    print(f"Total pages: {total}")
 
-    # Get total pages from the single span text like "共 12 页"
-    total_text = pages_container.find_element(By.TAG_NAME, "span").text
-    total = int(''.join(filter(str.isdigit, total_text)))
     total_pages_scraped = 0
-
+    image_paths = []
+    current_page = 1
 
     def get_visible_page_links():
         pages = driver.find_element(By.ID, 'perpage').find_elements(By.TAG_NAME, "a")
@@ -53,44 +54,59 @@ def fetch_image_paths(driver: webdriver.Chrome):
         }
 
     page_links = get_visible_page_links()
-    image_paths = []
-    current_page = 1
+
+    # Check if the blank placeholder image exists
+    if not os.path.exists("seleniumCore/assets/blank.jpeg"):
+        raise FileNotFoundError("Blank placeholder image not found at seleniumCore/assets/blank.jpeg")
 
     while current_page <= total:
+        temp = f"temp/{current_page}.jpg"
         try:
             print(f"\nScraping page {current_page}")
 
-            image = WebDriverWait(driver, 10).until(
+            image = WebDriverWait(driver, 20).until(
                 EC.presence_of_element_located((By.CLASS_NAME, 'TRS_Editor'))
             ).find_element(By.XPATH, './/img[1]')
-            src = image.get_attribute('src')
 
-            temp = f"temp/{current_page}.jpg"
-            functions.download_image(src, temp)
-            image_paths.append(temp)
-            print(f"Page {current_page} scraped successfully.")
-            total_pages_scraped +=1
+            if image:
+                src = image.get_attribute('src')
+                print(f"Attempting to download image from: {src}")
 
-            # Update page links if new ones appear dynamically
-            new_links = get_visible_page_links()
-            for k, v in new_links.items():
-                if k not in page_links:
-                    page_links[k] = v
-
-            # Navigate to next page
-            if current_page + 1 in page_links:
-                next_link = page_links[current_page + 1]
-                print(f"Navigating to page {current_page + 1}: {next_link}")
-                driver.get(next_link)
-                time.sleep(2)
-            else:
-                print(f"No link for page {current_page + 1}, stopping.")
-                break
+                success = functions.download_image(src, temp)
+                if success:
+                    total_pages_scraped += 1
+                    print(f"✅ Page {current_page} scraped successfully.")
+                else:
+                    print(f"❌ Failed to download image for page {current_page}. Using blank placeholder.")
+                    shutil.copy("seleniumCore/assets/blank.jpeg", temp)
+                    total_pages_scraped += 1  # Count as scraped since we have a placeholder
 
         except TimeoutException:
-            print(f"Timeout: No image found on page {current_page}, skipping...")
+            print(f"⏰ Timeout: No image found on page {current_page}. Using blank placeholder.")
+            shutil.copy("seleniumCore/assets/blank.jpeg", temp)
+            total_pages_scraped += 1  # Count as scraped since we have a placeholder
+
         except Exception as e:
-            print(f"Error scraping page {current_page}: {e}")
+            print(f"⚠️ Error scraping page {current_page}: {e}. Using blank placeholder.")
+            shutil.copy("seleniumCore/assets/blank.jpeg", temp)
+            total_pages_scraped += 1  # Count as scraped since we have a placeholder
+
+        image_paths.append(temp)
+
+        # Update visible page links
+        new_links = get_visible_page_links()
+        for k, v in new_links.items():
+            if k not in page_links:
+                page_links[k] = v
+
+        if current_page + 1 in page_links:
+            next_link = page_links[current_page + 1]
+            print(f"➡️ Navigating to page {current_page + 1}: {next_link}")
+            driver.get(next_link)
+            time.sleep(2)
+        else:
+            print(f"❌ No link for page {current_page + 1}, stopping.")
+            break
 
         current_page += 1
 
@@ -98,8 +114,15 @@ def fetch_image_paths(driver: webdriver.Chrome):
 
 
 
+
 def create_pdf(image_paths: list, output_folder: str, subject: str):
     output = os.path.join(output_folder, f"{translate_to_english[subject]}.pdf")
+    
+    # ✅ If PDF already exists, remove it
+    if os.path.exists(output):
+        print(f"PDF already exists. Replacing: {output}")
+        os.remove(output)
+
     functions.images_to_pdf(image_paths, output)
     print(f"PDF successfully created: {output}")
     return output

@@ -30,7 +30,7 @@ def is_exam_already_processed(db, year, exam_type, subject):
     if not exam:
         return False, False  # exam not processed, solution not processed
     
-    has_solution = db.query(Solution).filter_by(exam_id=exam.exam_id).first() is not None
+    has_solution = db.query(Solution).filter_by(exam_id=exam.exam_id).first()  is not None and exam.answers
     return True, has_solution  # exam processed, solution status
 
 
@@ -57,7 +57,6 @@ def safe_get(driver, url, timeout=20):
 def run():
     driver = create_driver()
     db = SessionLocal()
-
     for examType in examTypeContainer:
         print(examType)
         safe_get(driver, originalUrl)

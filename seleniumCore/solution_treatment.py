@@ -41,11 +41,20 @@ def navigate_to_subject(driver: webdriver.Chrome,container: str):
 
 
 
+import os
+
 def create_pdf(image_paths: list, output_folder: str, subject: str):
     output = os.path.join(output_folder, f"{subject}.pdf")
+    
+    # ✅ Replace existing PDF if it already exists
+    if os.path.exists(output):
+        print(f"PDF already exists. Replacing: {output}")
+        os.remove(output)
+    
     functions.images_to_pdf(image_paths, output)
     print(f"PDF successfully created: {output}")
     return output
+
 
 
 def save_solution_to_db(data: Solution, total_pages, total_pages_scraped):
